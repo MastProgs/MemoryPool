@@ -5,7 +5,7 @@
 MyPool2::MyPool2()
 {
 	m_pMain = (char *)malloc(Max_mem_size);
-	//m_pIter = m_pMain;
+	m_pIter = m_pMain;
 	m_pEnd = (char *)m_pMain + Max_mem_size;
 	//memset(pMain, 0, Max_mem_size);
 	ZeroMem(m_pMain, Max_mem_size);
@@ -33,19 +33,13 @@ void* MyPool2::Malloc(const size_t & s)
 	}
 
 	// 남은 공간 확인 후
-	//short retry{ 2 };
-	///m_L.lock();
+	short retry{ 1000 };
+	m_L.lock();
 	do
 	{
-		long long preTagToNextDistance = LLval(pHere) & TAG::Mask;
 		while (true)
 		{
-			if (LLval(pHere) == 0)
-			{
-				break;
-			}
-
-			if (pHere == m_pEnd)
+			if ((pHere == m_pEnd) || (LLval(pHere) == 0))
 			{
 				pHere = m_pMain;
 				break;
@@ -62,44 +56,40 @@ void* MyPool2::Malloc(const size_t & s)
 				// 남은 공간이 있다 - 공간 여유가 있는지 확인 후 바로 할당 ( First-Fit 정책 )
 				if ((realSize < LLval(pHere)) || 0 == LLval(pHere))
 				{
-					// 할당 시작
+					// 할당
 					long long lastFreeSize = LLval(pHere) - realSize;
 
 					// 사용 공간 외, 나머지 공간에 태그 작성이 가능한지 확인 - 9 이상은 남아야 1바이트 라도 할당 가능
 					if (Tag_size + 1 < lastFreeSize)
 					{
-						if (false == CAS(pHere, LLval(pHere), (realSize - Tag_size) | TAG::isUse))
-						{
-							break;
-						}
+						LLval(pHere) = (realSize - Tag_size) | TAG::isUse;
+						void * retPtr = pHere + Tag_size;
 
-						// 뒤에 남은 공간 만큼 태그 작성 - CAS 실패시 어쩌지? ㅋㅋㅋㅋ 답이 없네 - 뒷수습을 해야됨 ㅠ 어디서 하나...
-						// 어차피 here 가 0 이면, break 때려서 상관 없을듯?
-						// LLval(pHere + realSize) = lastFreeSize;
-						if (false == CAS(pHere + realSize, LLval(pHere + realSize), lastFreeSize))
-						{
-						}
-						return pHere + Tag_size;
+						// 뒤에 남은 공간 만큼 태그 작성
+						pHere += realSize;
+						LLval(pHere) = lastFreeSize;
+
+						m_L.unlock();
+						return retPtr;
 					}
 
 					// 얼마 안 남은 공간 만큼 크기 그냥 사용
-					if (false == CAS(pHere, LLval(pHere), (LLval(pHere) - Tag_size) | TAG::isUse))
-					{
-						break;
-					}
-					///m_L.unlock();
-					return pHere + Tag_size;
+					LLval(pHere) = (LLval(pHere) - Tag_size) | TAG::isUse;
+					void * retPtr = pHere + Tag_size;
+
+					m_L.unlock();
+					return retPtr;
 				}
 				else
 				{
 					// 다음 태그로 넘어가기
-					pHere += LLval(pHere);
+					pHere += (LLval(pHere) & TAG::Mask);
 				}
 			}
 		}
-	} while (true);
+	} while (--retry);
 
-	///m_L.unlock();
+	m_L.unlock();
 	return nullptr;
 }
 
@@ -112,7 +102,7 @@ void MyPool2::Free(void * p)
 	char * pPreTag{ pCurr - Tag_size };
 	long long memSize{ (LLval(pPreTag)) & TAG::Mask };
 
-	///m_L.lock();
+	m_L.lock();
 	ZeroMem(pCurr, memSize);
 
 	// 뒷 태그 메모리 존재 여부 확인
@@ -123,40 +113,22 @@ void MyPool2::Free(void * p)
 	}
 	else
 	{
-		// 비어있는 여유 공간 - 마킹은 남은 공간 값 계산해서 넣을때, 값 계산 도중 자연스럽게 사라진다
+		// 비어있는 여유 공간
 		if (0 == (*(long long *)pNextTag))
 		{
 			// 태그 자체가 없을 경우
-			LLval(pPreTag) = (m_pEnd - pPreTag) | TAG::isUse;
-			//CAS(pPreTag, LLval(pPreTag), m_pEnd - pPreTag);
-			return;
+			LLval(pPreTag) = m_pEnd - pPreTag;
 		}
 		else
 		{
 			// 비어있는 메모리 공간이 있다면 합치자.
-			long long CalculateFreeSize = LLval(pNextTag);
-
-			// 다시 한번 더 건든 사람이 있는지 검사하기
-			if (CalculateFreeSize & TAG::isUse)
-			{
-				// 그새 누가 사용중!!
-				CalculateFreeSize = 0;
-			}
-			else
-			{
-				if (false == CAS(pNextTag, LLval(pNextTag), 0))
-				{
-					// 체크하고 난 뒤, 그 잠깐 찰나에 또 할당해서 써버린거라, 건들면 앙댐
-					CalculateFreeSize = 0;
-				}
-			}
-
-			CalculateFreeSize += memSize;
-			LLval(pPreTag) = CalculateFreeSize | TAG::isUse;
+			LLval(pPreTag) = (LLval(pNextTag) + memSize);
+			ZeroMem(pNextTag, Tag_size);
 		}
 	}
+	
+	//std::cout << LLval(pPreTag) << std::endl;
+	LLval(pPreTag) = (LLval(pPreTag) & TAG::Mask) + Tag_size;
 
-	//LLval(pPreTag) = (LLval(pPreTag) & TAG::Mask) + Tag_size;
-	CAS(pPreTag, LLval(pPreTag), (LLval(pPreTag) & TAG::Mask) + Tag_size);
-	///m_L.unlock();
+	m_L.unlock();
 }

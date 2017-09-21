@@ -14,11 +14,15 @@ void f()
 	for (int i = 0; i < 10000000 / 4; ++i)
 	{
 		int * p = (int *)mp.Malloc(sizeof(int));
+		if (p == nullptr)
+		{
+			--i;
+			continue;
+		}
 		*p = -1;
 		mp.Free(p);
 	}
 }
-
 
 int main()
 {
@@ -28,7 +32,8 @@ int main()
 	std::vector<std::thread> threadVector;
 
 	time.TimeCheckBeg();
-	for (int i = 0; i < 2; ++i)
+
+	for (int i = 0; i < 4; ++i)
 	{
 		threadVector.emplace_back(std::thread{ f });
 	}
@@ -36,6 +41,7 @@ int main()
 	{
 		d.join();
 	}
+
 	time.TimeCheckEnd();
 
 	std::cout << time.TakenTime() << " ms\n";
