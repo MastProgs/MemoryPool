@@ -11,7 +11,7 @@ MyPool2 mp;
 
 void f()
 {
-	for (int i = 0; i < 10000000 / 4; ++i)
+	for (int i = 0; i < 10000000; ++i)
 	{
 		int * p = (int *)mp.Malloc(sizeof(int));
 		*p = -1;
@@ -28,7 +28,7 @@ int main()
 	std::vector<std::thread> threadVector;
 
 	time.TimeCheckBeg();
-	for (int i = 0; i < 2; ++i)
+	for (int i = 0; i < 4; ++i)
 	{
 		threadVector.emplace_back(std::thread{ f });
 	}

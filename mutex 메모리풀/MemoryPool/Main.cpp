@@ -11,7 +11,7 @@ MyPool2 mp;
 
 void f()
 {
-	for (int i = 0; i < 10000000 / 4; ++i)
+	for (int i = 0; i < 10000000; ++i)
 	{
 		int * p = (int *)mp.Malloc(sizeof(int));
 		if (p == nullptr)
