@@ -1,5 +1,7 @@
 #pragma once
+#include <Windows.h>
 #include <atomic>
+#include <iostream>
 
 using BYTE00004 = int;
 using BYTE00008 = long long;
@@ -23,12 +25,20 @@ constexpr size_t MAX_MEM_CHUNCK_CNT{ 5000 };
 
 namespace
 {
-	bool CAS(void *ptr, int oldVal, int newVal)
+	bool CAS(int * ptr, int oldVal, int newVal)
 	{
-		return std::atomic_compare_exchange_strong(
+		/*return std::atomic_compare_exchange_strong(
 			reinterpret_cast<std::atomic_int *>(&ptr)
 			, &oldVal
-			, newVal);
+			, newVal);*/
+
+		int temp = InterlockedCompareExchange(
+			(volatile long *)ptr,
+			(long)newVal,
+			(long)oldVal
+		);
+		
+		return temp == oldVal;
 	}
 }
 
@@ -39,81 +49,20 @@ public:
 	~IndexMemPool();
 
 
-	void * Malloc(size_t s)
-	{
-		// 할당 할 수 없는 범위 라면, nullptr 반환
-		if (1 > s || s > 16384)
-		{
-			return nullptr;
-		}
+	void * Malloc(size_t s);
 
-		// 얼만큼 크기의 버킷을 줄지 index 를 구하자
-		int index1st = getIndexSize(s);
-
-		// 어디가 사용중이지 않는지 찾고, 쓰겠다고 표기하자
-		int index2nd{ 0 }, indexBit{ 0 };
-		if (false == FindFreePtr(index1st, index2nd, indexBit))
-		{
-			// 뭔가 할당을 못해줄 상황인것이다
-			return nullptr;
-		}
-
-		int calculateChunkIndex{ (index2nd * BIT_SIZE_INT) + indexBit };
-		int ptrDistance = (index2nd * m_memSize[index1st]) + indexBit;
-		char * p = (char *)m_memPtrArr[index1st];
-		return (void *)p[ptrDistance];
-	}
-
-	void Free(void * p)
-	{
-		int index1st{ 0 }, pDis{ 0 };
-		for (index1st = 0; index1st < MAX_BUCKET_INDEX; ++index1st)
-		{
-			// 해제할 포인터 위치에서, 할당 받은 앞 포인터를 각각 거리 비교 0 ~ 4999 이내 값이 나와야 한다
-			pDis = getPtrDistance(p, index1st);
-			if (MAX_MEM_CHUNCK_CNT > pDis && pDis >= 0)
-			{
-				break;
-			}
-		}
-
-		// 이상한 위치의 포인터면 그냥 버리기
-		if (MAX_BUCKET_INDEX == index1st)
-		{
-			return;
-		}
-
-		// 찾아서 indexPage 사용해제 해주기
-		/// i 는 메모리 크기 구분하는 index, pDis 는 두번째 인덱스 구분용
-		/// pDis / 32 = 두번째 인덱스
-		/// pDis % 32 = 비트 위치
-
-		int index2nd{ pDis / BIT_SIZE_INT };
-		int indexBit{ pDis % BIT_SIZE_INT };
-		int setBit{ 1 };	
-		setBit <<= indexBit;
-		// ~setBit;	// 이렇게 해서 마스크 씌워버리면 간편할듯
-
-		while (true)
-		{
-			int tempVal = m_memIndexPage[index1st][index2nd];
-			if (CAS(&m_memIndexPage[index1st][index2nd], tempVal, tempVal & (~setBit)))
-			{
-				break;
-			}
-		}
-	}
+	void Free(void * p);
 
 private:
 	void Init();
 	void Release();
 
-	const int getBucketSize(const size_t & s);
+	const size_t getChunckSize(const size_t & s);
 	const int getIndexSize(const size_t & s);
-	const int getPtrDistance(const void const * p, const int & index);
+	const long long getPtrDistance(const void * const p, const int & index);
 
 	bool FindFreePtr(const int & in1st, int & index, int & bit);
-	bool setMask(int * p);
+	bool setMask(int * p, int & bit);
 
 	size_t m_memSize[MAX_BUCKET_INDEX]{ 0 };
 	int m_memIndexPage[MAX_BUCKET_INDEX][MAX_MEM_CHUNCK_CNT]{ 0 };
