@@ -167,6 +167,11 @@ void * IndexMemPool::Malloc(size_t s)
 
 void IndexMemPool::Free(void * p)
 {
+	if (nullptr == p)
+	{
+		return;
+	}
+
 	int index1st{ 0 };
 	size_t pDis{ 0 };
 	for (index1st = 0; index1st < MAX_BUCKET_INDEX; ++index1st)

@@ -22,31 +22,39 @@ private:
 
 IndexMemPool mp;
 
-void f()
+template<typename T>
+bool EXPECT_EQ(T Expected, T Value)
 {
-	for (int i = 0; i < 10000000; ++i)
+	if (Expected != Value)
 	{
-		int * p = (int *)mp.Malloc(sizeof(int));
-		*p = -1;
-		mp.Free(p);
+		std::cout << "Test failed : Expected =" << Expected << " Value = " << Value << std::endl;
+		return false;
 	}
+	return true;
+}
+
+void SingleThreadTest()
+{
+	int * p1 = (int *)mp.Malloc(sizeof(int));
+	int * p2 = (int *)mp.Malloc(sizeof(int));
+	int * p3 = (int *)mp.Malloc(sizeof(int));
+
+	*p1 = -1;
+	*p2 = -2;
+	*p3 = -3;
+
+	EXPECT_EQ(-1, *p1);
+	EXPECT_EQ(-2, *p2);
+	EXPECT_EQ(-3, *p3);
+
+	mp.Free(p1);
+	mp.Free(p2);
+	mp.Free(p3);
 }
 
 int main()
 {
-	TimeCheck time;
-	std::vector<std::thread> threadVector;
+	SingleThreadTest();
 
-	time.TimeCheckBeg();
-	for (int i = 0; i < 4; ++i)
-	{
-		threadVector.emplace_back(std::thread{ f });
-	}
-	for (auto & d : threadVector)
-	{
-		d.join();
-	}
-	time.TimeCheckEnd();
 
-	std::cout << time.TakenTime() << " ms\n";
 }
