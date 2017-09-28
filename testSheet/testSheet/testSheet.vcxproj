@@ -150,9 +150,11 @@
   <ItemGroup>
     <ClCompile Include="IndexMemPool.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="SingleIntMemPool.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="IndexMemPool.h" />
+    <ClInclude Include="SingleIntMemPool.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

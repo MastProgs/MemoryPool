@@ -1,4 +1,4 @@
-#define ChooseType LFH
+#define ChooseType MYMEMPOOL
 
 #define LFH 0
 #define PPL 1
@@ -28,6 +28,14 @@ constexpr int MAX_TRY{ 40000000 };
 constexpr int MAX_INDEX{ 12 };	// 8100 까지만 테스트 하기 때문에 12
 constexpr int threadNums{ 4 };
 
+#if (ChooseType == MYMEMPOOL)
+//#include "IndexMemPool.h"
+//IndexMemPool g_myMemPool;
+#include "SingleIntMemPool.h"
+SingleIntMemPool g_myMemPool;
+#define  threadNums 1
+#endif
+
 // 할당 비율 계산용
 int allocPattern[40]{ 4,4,4,4,4,4,4,4,8,8,8,8,8,8,8,8,16,16,16,16,16,16,32,32,32,32,64,64,64,64,128,128,256,256,512,512,1024,2048,4096,8192 };
 
@@ -46,10 +54,6 @@ int allocPattern[40]{ 4,4,4,4,4,4,4,4,8,8,8,8,8,8,8,8,16,16,16,16,16,16,32,32,32
 // 8192 Byte	= 2.5%
 
 vector<int> allocvec;
-#if (ChooseType == MYMEMPOOL)
-#include "IndexMemPool.h"
-IndexMemPool g_myMemPool;
-#endif
 
 void benchMarkAllAlloc(int th_id)
 {
@@ -65,7 +69,7 @@ void benchMarkAllAlloc(int th_id)
 #elif (ChooseType == PPL)
 		localAllocPtr.emplace_back(concurrency::Alloc(allocvec[i + th_id]));
 #elif (ChooseType == MYMEMPOOL)
-		localAllocPtr.emplace_back(g_myMemPool.Malloc(allocvec[i + th_id]));
+		localAllocPtr.emplace_back(g_myMemPool.Malloc(allocvec[i] / 4));
 #endif
 		*(int *)localAllocPtr[i] = -1;
 	}
@@ -78,7 +82,7 @@ void benchMarkAllAlloc(int th_id)
 #elif (ChooseType == PPL)
 		concurrency::Free(d);
 #elif (ChooseType == MYMEMPOOL)
-		g_myMemPool.Free(d);
+		g_myMemPool.Free((int *)d);
 #endif
 	}
 }
@@ -86,7 +90,7 @@ void benchMarkAllAlloc(int th_id)
 // int alloc
 void benchMarkIntAlloc(int th_id)
 {
-	int reTry = (240000 / threadNums);
+	int reTry = (MAX_TRY / threadNums);
 	vector<void *> localAllocPtr;
 	localAllocPtr.reserve(reTry);
 
@@ -97,7 +101,7 @@ void benchMarkIntAlloc(int th_id)
 #elif (ChooseType == PPL)
 		localAllocPtr.emplace_back(concurrency::Alloc(sizeof(int)));
 #elif (ChooseType == MYMEMPOOL)
-		localAllocPtr.emplace_back(g_myMemPool.Malloc(sizeof(int)));
+		localAllocPtr.emplace_back(g_myMemPool.Malloc(sizeof(int) / 4));
 #endif
 		*(int *)localAllocPtr[i] = -1;
 	}
@@ -110,7 +114,7 @@ void benchMarkIntAlloc(int th_id)
 #elif (ChooseType == PPL)
 		concurrency::Free(d);
 #elif (ChooseType == MYMEMPOOL)
-		g_myMemPool.Free(d);
+		g_myMemPool.Free((int *)d);
 #endif
 	}
 }
@@ -132,7 +136,7 @@ void benchMarkReal(int th_id)
 #elif (ChooseType == PPL)
 		localAllocPtr[dist(mt) & 1].push(concurrency::Alloc(allocPattern[dist(mt)]));
 #elif (ChooseType == MYMEMPOOL)
-		localAllocPtr[dist(mt) & 1].push(g_myMemPool.Malloc(allocPattern[dist(mt)]));
+		//localAllocPtr[dist(mt) & 1].push(g_myMemPool.Malloc(allocPattern[dist(mt)]));
 #endif
 		if (!(i % 4))
 		{
@@ -143,7 +147,7 @@ void benchMarkReal(int th_id)
 #elif (ChooseType == PPL)
 				concurrency::Free(localAllocPtr[0].front());
 #elif (ChooseType == MYMEMPOOL)
-				g_myMemPool.Free(localAllocPtr[0].front());
+				//g_myMemPool.Free(localAllocPtr[0].front());
 #endif
 				localAllocPtr[0].pop();
 			}
@@ -159,7 +163,7 @@ void benchMarkReal(int th_id)
 #elif (ChooseType == PPL)
 			concurrency::Free(localAllocPtr[i].front());
 #elif (ChooseType == MYMEMPOOL)
-			g_myMemPool.Free(localAllocPtr[i].front());
+			//g_myMemPool.Free(localAllocPtr[i].front());
 #endif
 			localAllocPtr[i].pop();
 		}
@@ -200,7 +204,7 @@ int main()
 	size_t averageSum{ 0 };
 
 	// Full Alloc
-	for (int i = 0; i < averTimes; ++i)
+	for (int j = 0; j < averTimes; ++j)
 	{
 		Tstart = chrono::high_resolution_clock::now();
 		for (int i = 0; i < threadNums; ++i) threads[i] = new thread{ benchMarkAllAlloc, i };
@@ -214,7 +218,7 @@ int main()
 	averageSum = 0;
 
 	// int Alloc
-	for (int i = 0; i < averTimes; ++i)
+	for (int j = 0; j < averTimes; ++j)
 	{
 		Tstart = chrono::high_resolution_clock::now();
 		for (int i = 0; i < threadNums; ++i) threads[i] = new thread{ benchMarkIntAlloc, i };
@@ -229,7 +233,7 @@ int main()
 
 #if ChooseType != MYMEMPOOL
 	// real Alloc
-	for (int i = 0; i < averTimes; ++i)
+	for (int j = 0; j < averTimes; ++j)
 	{
 		Tstart = chrono::high_resolution_clock::now();
 		for (int i = 0; i < threadNums; ++i) threads[i] = new thread{ benchMarkReal, i };
