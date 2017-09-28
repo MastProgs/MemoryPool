@@ -196,39 +196,50 @@ int main()
 
 	auto Tstart = chrono::high_resolution_clock::now();
 	auto Tend = chrono::high_resolution_clock::now();
+	int averTimes{ 5 };
+	size_t averageSum{ 0 };
 
 	// Full Alloc
-	for (int i = 0; i < 5; ++i)
+	for (int i = 0; i < averTimes; ++i)
 	{
 		Tstart = chrono::high_resolution_clock::now();
 		for (int i = 0; i < threadNums; ++i) threads[i] = new thread{ benchMarkAllAlloc, i };
 		for (int i = 0; i < threadNums; ++i) threads[i]->join();
 		Tend = chrono::high_resolution_clock::now();
 		cout << "Duration Time : " << chrono::duration_cast<chrono::milliseconds>(Tend - Tstart).count() << "ms\t- Full Alloc\n";
+		averageSum = averageSum + chrono::duration_cast<chrono::milliseconds>(Tend - Tstart).count();
 		for (int i = 0; i < threadNums; ++i) delete threads[i];
 	}
+	cout << "Duration Average Time : " << averageSum / averTimes << "ms\n\n";
+	averageSum = 0;
 
 	// int Alloc
-	for (int i = 0; i < 5; ++i)
+	for (int i = 0; i < averTimes; ++i)
 	{
 		Tstart = chrono::high_resolution_clock::now();
 		for (int i = 0; i < threadNums; ++i) threads[i] = new thread{ benchMarkIntAlloc, i };
 		for (int i = 0; i < threadNums; ++i) threads[i]->join();
 		Tend = chrono::high_resolution_clock::now();
 		cout << "Duration Time : " << chrono::duration_cast<chrono::milliseconds>(Tend - Tstart).count() << "ms\t- int Alloc\n";
+		averageSum = averageSum + chrono::duration_cast<chrono::milliseconds>(Tend - Tstart).count();
 		for (int i = 0; i < threadNums; ++i) delete threads[i];
 	}
+	cout << "Duration Average Time : " << averageSum / averTimes << "ms\n\n";
+	averageSum = 0;
 
 #if ChooseType != MYMEMPOOL
 	// real Alloc
-	for (int i = 0; i < 5; ++i)
+	for (int i = 0; i < averTimes; ++i)
 	{
 		Tstart = chrono::high_resolution_clock::now();
 		for (int i = 0; i < threadNums; ++i) threads[i] = new thread{ benchMarkReal, i };
 		for (int i = 0; i < threadNums; ++i) threads[i]->join();
 		Tend = chrono::high_resolution_clock::now();
 		cout << "Duration Time : " << chrono::duration_cast<chrono::milliseconds>(Tend - Tstart).count() << "ms\t- Real Alloc\n";
+		averageSum = averageSum + chrono::duration_cast<chrono::milliseconds>(Tend - Tstart).count();
 		for (int i = 0; i < threadNums; ++i) delete threads[i];
 	}
+	cout << "Duration Average Time : " << averageSum / averTimes << "ms\n\n";
+	averageSum = 0;
 #endif
 }
